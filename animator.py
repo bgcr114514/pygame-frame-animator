@@ -89,16 +89,8 @@ class DefaultLogger(AbstractLogger):
     def critical(self, message: str) -> None:
         print(f"[CRITICAL] {message}")
 
-class _Immutable:
-    def __setattr__(self, name, value) -> None:
-        if hasattr(self, name):
-            raise AttributeError(f"Cannot modify immutable attribute '{name}'")
-        super().__setattr__(name, value)
-    
-    def __delattr__(self, name) -> NoReturn:
-        raise AttributeError(f"Cannot delete immutable attribute '{name}'")
 
-class _AnimatorMagicNumber(_Immutable):
+class _AnimatorMagicNumber:
     DEFAULT_MAX_CHACH_SIZE: Final[int] = 200
     ORIGINAL_IMAGE_FRAME_SCALE: Final[Scale] = (0, 0)
     DEFAULT_PLAY_MODE: Final[PlayMode] = "loop"
@@ -109,6 +101,14 @@ class _AnimatorMagicNumber(_Immutable):
     ERROR_RECT_COLOR: Final[Tuple[int, int, int]] = (255, 0, 0)
     
     DEBUG_FONT_SIZE: Final[int] = 16
+
+    def __setattr__(self, name, value) -> None:
+        if hasattr(self, name):
+            raise AttributeError(f"Cannot modify immutable attribute '{name}'")
+        super().__setattr__(name, value)
+    
+    def __delattr__(self, name) -> NoReturn:
+        raise AttributeError(f"Cannot delete immutable attribute '{name}'")
 
 @dataclass
 class _CacheManagerDeps:
@@ -480,7 +480,7 @@ class FramePlayerEasilyGenerator:
             max_cache_size = max_cache_size
         )
         
-        return cls(config)
+        return FramePlayer(config)
 
 class FramePlayer(AbstractAnimator):
     """A frame animation player that supports cache optimization and animation event callbacks, 
@@ -751,19 +751,24 @@ class FramePlayer(AbstractAnimator):
         
         frames = config.frames
         frames_times = config.frames_times
-
         try:
+            if len(frames) == 0:
+                raise ValueError("frames must not be empty")
+            
             if frames.keys() != frames_times.keys():
                 missing = set(frames.keys()).symmetric_difference(frames_times.keys()) # A.symmetric_difference(B) = (A △ B) = (A ∪ B) - (A ∩ B)
                 raise ValueError(f"States definition incomplete, missing: {missing}")
 
             for state, frame_list in frames.items():
+                if len(frame_list) == 0:
+                    raise ValueError(f"frames[\"{state}\"] must not be empty")
+                
                 if not isinstance(frame_list, list) or not all(isinstance(frame, str) or isinstance(frame, pygame.Surface) for frame in frame_list):
-                    raise TypeError(f"frames[{state}] must be a List[str] or List[pygame.Surface]")
+                    raise TypeError(f"frames[\"{state}\"] must be a List[str] or List[pygame.Surface]")
                 
             for state, frame_time in frames_times.items():
                 if not isinstance(frame_time, (float, int)):
-                    raise TypeError(f"frames_time[{state}] must be a float")
+                    raise TypeError(f"frames_time[\"{state}\"] must be a float")
         except AttributeError:
             raise TypeError("frames and frames_time must be dicts")  
          
@@ -950,12 +955,15 @@ class FramePlayer(AbstractAnimator):
     # endregion
 
     # region #################### resources management ####################
-    def release(self) -> Optional[bool]:
+    def release(self) -> bool:
         """Release all resources and return whether the release operation was executed
 
         Returns:
             True: Actually executed resource release
             False: Resource released (skipped)
+        
+        Raises:
+            Exception: Resource release failed
         """
         if self._released:
             self._logger.info("Resource released (skipped safely)")
@@ -976,7 +984,11 @@ class FramePlayer(AbstractAnimator):
                 self._released = True
                 self._state_manager = None
                 self._cache_manager = None
+                super().kill()
                 self._logger.info("Resource release status updated")
+    
+    def kill(self):
+        self.release()
                 
     def __del__(self) -> None:
         """
@@ -1072,12 +1084,20 @@ class FramePlayer(AbstractAnimator):
     @property
     def frame_index(self) -> int:
         return self._state_manager.frame_index
+    
+    def _private_dir(self) -> List[str]:
+        """Get public attributes"""
+        all_attrs = super().__dir__()
+        public_attrs = [
+            attr for attr in all_attrs 
+            if not attr.startswith('_') or 
+            (attr.startswith('__') and attr.endswith('__'))
+        ]
+        return sorted(public_attrs)
+    
+    def get_self_attrs(self) -> List[str]:
+        """Get all new create attributes of the object"""
+        all_attrs = self.__dir__()
+        new_attrs = set(all_attrs) - set(dir(super()))
+        return [attr for attr in sorted(new_attrs) if not attr.startswith('_')]
     # endregion
-
-
-def serialize_frames(save_file: str, obj: "FramePlayer") -> None:
-    """Save frame player object's frames config to file"""
-    with open(save_file, 'w') as f:
-        f.write("")
-    with open(save_file, 'a') as f:
-        f.write(obj.frames)
