@@ -14,7 +14,7 @@ Scale: TypeAlias = Tuple[int, int]    # (width, height)
 FramesDict: TypeAlias = Dict[str, List[Union[str, pygame.Surface]]]
 FramesTimesDict: TypeAlias = Dict[str, float]
 
-class AbstractAnimator(ABC, pygame.sprite.Sprite):
+class AbstractAnimationPlayer(ABC, pygame.sprite.Sprite):
     """animator abstract base class, define unified interface for all"""
     
     @abstractmethod
@@ -90,7 +90,7 @@ class DefaultLogger(AbstractLogger):
         print(f"[CRITICAL] {message}")
 
 
-class _AnimatorMagicNumber:
+class _AnimationMagicNumber:
     DEFAULT_MAX_CHACH_SIZE: Final[int] = 200
     ORIGINAL_IMAGE_FRAME_SCALE: Final[Scale] = (0, 0)
     DEFAULT_PLAY_MODE: Final[PlayMode] = "loop"
@@ -200,7 +200,7 @@ class _FrameCacheManager:
         return frame_name, self._deps.get_scale(), self._deps.get_direction()
     
     def set_max_cache_size(self, size: int) -> None:
-        if size < _AnimatorMagicNumber.CACHE_MIN_SIZE:
+        if size < _AnimationMagicNumber.CACHE_MIN_SIZE:
             raise ValueError("Cache must greater than or equal to 10")
             
         with self._cache_lock:
@@ -245,7 +245,7 @@ class _FrameCacheManager:
     @property
     def info(self) -> Dict[str, Union[int, List[str]]]:
         with self.lock:
-            sample_keys = list(self.image_cache.keys())[:_AnimatorMagicNumber.SAMPLE_DISPLAY_COUNT]
+            sample_keys = list(self.image_cache.keys())[:_AnimationMagicNumber.SAMPLE_DISPLAY_COUNT]
             return {
                 "cache_size": len(self.image_cache),
                 "max_size": self.max_cache_size,
@@ -380,15 +380,15 @@ class _FrameStateManager:
                 self._logger.error(f"Frame change callback execution failed: {str(error)}")
 
 @dataclass
-class AnimatorConfig:
+class AnimationConfig:
     frames: FramesDict
     frames_times: FramesTimesDict
-    frame_scale: Scale = _AnimatorMagicNumber.ORIGINAL_IMAGE_FRAME_SCALE
-    max_cache_size: int = _AnimatorMagicNumber.DEFAULT_MAX_CHACH_SIZE
-    play_mode: PlayMode = _AnimatorMagicNumber.DEFAULT_PLAY_MODE
+    frame_scale: Scale = _AnimationMagicNumber.ORIGINAL_IMAGE_FRAME_SCALE
+    max_cache_size: int = _AnimationMagicNumber.DEFAULT_MAX_CHACH_SIZE
+    play_mode: PlayMode = _AnimationMagicNumber.DEFAULT_PLAY_MODE
 
 @dataclass
-class AnimatorParamInjection:
+class AnimationParamInjection:
     image_provider: Optional[Dict[str, pygame.Surface]] = None
     logger_instance: Optional[AbstractLogger] = None
     state_manager: Optional[_FrameStateManager] = None
@@ -472,7 +472,7 @@ class FramePlayerEasilyGenerator:
         else:
             frames_times = frames_times
         
-        config = AnimatorConfig(
+        config = AnimationConfig(
             frames = frames,
             frames_times = frames_times,
             frame_scale = scale,
@@ -482,7 +482,7 @@ class FramePlayerEasilyGenerator:
         
         return FramePlayer(config)
 
-class FramePlayer(AbstractAnimator):
+class FramePlayer(AbstractAnimationPlayer):
     """A frame animation player that supports cache optimization and animation event callbacks, 
     inherited from pygame.sprite.Sprite.
 
@@ -523,17 +523,17 @@ class FramePlayer(AbstractAnimator):
     """
     
     __slots__ = (
-        "_image_source", "frames", "frames_times", "frame_scale",
+        "_image_source", "frames", "frames_times", "frame_scale", "angle"
         "play_mode", "direction", "_cache_manager", "_state_manager",
         "_play_count", "_on_complete_callbacks", "_on_frame_change_callbacks",
-        "_on_state_change_callbacks", "_last_transform", "_last_direction",
+        "_on_state_change_callbacks", "_last_transform", "_last_direction", "_last_angle"
         "image", "rect", "_released", "_pingpong_direction", "_surface_frames", "_logger"
     )
     
     def __init__(
         self, 
-        config: AnimatorConfig, 
-        injection: AnimatorParamInjection = AnimatorParamInjection()
+        config: AnimationConfig, 
+        injection: AnimationParamInjection = AnimationParamInjection()
     ) -> None:
         """Init the FramePlayer with given parameters
 
@@ -587,6 +587,7 @@ class FramePlayer(AbstractAnimator):
         self.frame_scale: Scale = config.frame_scale
         self.play_mode: PlayMode = config.play_mode
         self.direction: Direction = (False, False)
+        self.angle: float = .0
         self._logger = injection.logger_instance or DefaultLogger()
 
         self._process_init_frame(config)
@@ -614,6 +615,7 @@ class FramePlayer(AbstractAnimator):
         # track status
         self._last_scale: Scale = (0, 0)
         self._last_direction: Direction = (False, False)
+        self._last_angle: float = .0
         self.image: Optional[pygame.Surface] = None
         self.rect: Optional[pygame.Rect] = None
         self._released = False
@@ -625,7 +627,7 @@ class FramePlayer(AbstractAnimator):
             self.image = self._cache_manager.get_cached_image(str(self.frames[self._state_manager.current_state][0]))
         self.rect = self.image.get_rect()
 
-    def _process_init_frame(self, config: AnimatorConfig) -> None:
+    def _process_init_frame(self, config: AnimationConfig) -> None:
         self._surface_frames = False
 
         _first_frame = next(iter(config.frames.values()))
@@ -647,6 +649,8 @@ class FramePlayer(AbstractAnimator):
             img = pygame.transform.scale(img, self.frame_scale)
         if any(self.direction):
             img = pygame.transform.flip(img, *self.direction)
+        if self.angle % 360 != .0:
+            img = pygame.transform.rotate(img, self.angle)
         return img
 
     def _process_surface_frame(self, surface: pygame.Surface) -> pygame.Surface:
@@ -707,8 +711,8 @@ class FramePlayer(AbstractAnimator):
     
     def _validate_init_params(
         self,
-        config: AnimatorConfig,
-        injection: AnimatorParamInjection
+        config: AnimationConfig,
+        injection: AnimationParamInjection
     ) -> None:
         """Verify the validity of initialization parameters
         Args:
@@ -723,8 +727,8 @@ class FramePlayer(AbstractAnimator):
         self._vaildate_init_injection(injection)
 
     @staticmethod
-    def _vaildate_init_injection(injection: AnimatorParamInjection) -> None:
-        if not isinstance(injection, AnimatorParamInjection):
+    def _vaildate_init_injection(injection: AnimationParamInjection) -> None:
+        if not isinstance(injection, AnimationParamInjection):
             raise TypeError("injection must be AnimatorParamInjection")
         image_provider = injection.image_provider
         logger_instance = injection.logger_instance
@@ -745,8 +749,8 @@ class FramePlayer(AbstractAnimator):
 
         
     @staticmethod
-    def _vaildate_init_config(config: AnimatorConfig) -> None:
-        if not isinstance(config, AnimatorConfig):
+    def _vaildate_init_config(config: AnimationConfig) -> None:
+        if not isinstance(config, AnimationConfig):
             raise TypeError("config must be AnimatorConfig")
         
         frames = config.frames
@@ -777,16 +781,16 @@ class FramePlayer(AbstractAnimator):
         play_mode = config.play_mode
         if not isinstance(frame_scale, tuple) or not all(isinstance(i, (int, float)) for i in frame_scale):
             raise TypeError("frame_scale must be a tuple of two numbers")
-        if not isinstance(max_cache_size, int) or max_cache_size < _AnimatorMagicNumber.DEFAULT_MAX_CHACH_SIZE:
-            raise ValueError(f"max_cache_size must be an integer greater than or equal to {_AnimatorMagicNumber.DEFAULT_MAX_CHACH_SIZE}")
+        if not isinstance(max_cache_size, int) or max_cache_size < _AnimationMagicNumber.DEFAULT_MAX_CHACH_SIZE:
+            raise ValueError(f"max_cache_size must be an integer greater than or equal to {_AnimationMagicNumber.DEFAULT_MAX_CHACH_SIZE}")
         if not play_mode in get_args(PlayMode):
             raise ValueError(f"Invalid play mode: {play_mode}, play mode must be one of {get_args(PlayMode)}")
 
     @staticmethod
     def _create_error_surface() -> pygame.Surface:
         """Generate error prompt image"""
-        surf = pygame.Surface(_AnimatorMagicNumber.ERROR_SURFACE_SIZES)
-        surf.fill(_AnimatorMagicNumber.ERROR_RECT_COLOR)
+        surf = pygame.Surface(_AnimationMagicNumber.ERROR_SURFACE_SIZES)
+        surf.fill(_AnimationMagicNumber.ERROR_RECT_COLOR)
         return surf
     
     @property
@@ -855,13 +859,19 @@ class FramePlayer(AbstractAnimator):
     # endregion
 
     # region #################### core update logic ####################
-    def update_frame(self, dt: float = 1/60, direction: Direction = (False, False), scale: Scale = (0, 0)) -> None:
+    def update_frame(
+            self, 
+            dt: float = 1/60, 
+            direction: Direction = (False, False), 
+            scale: Scale = (0, 0),
+            angle: float = .0
+        ) -> None:
         """Update animation frame
-        
-        Args:
+                Args:
             dt: Time elapsed since the previous frame (in seconds), default is 1/60
             direction: Image flipping direction (flip_x, flip_y)
             transform: Image scaling size (width, height)
+            angle: Image rotation angle (in degrees)
         """
         if self._state_manager.current_state is None:    
             return
@@ -869,14 +879,18 @@ class FramePlayer(AbstractAnimator):
             self.direction = direction
         if self.frame_scale != scale:
             self.frame_scale = scale
+        if self.angle != (normalized_angle := angle % 360):
+            self.angle = normalized_angle
+
         self._state_manager.time_since_last_frame += dt
-
-
         frame_duration = self.frames_times[self._state_manager.current_state]
         
-        if self._state_manager.time_since_last_frame >= frame_duration:
-            self._state_manager.time_since_last_frame = 0
-            self._advance_frame()
+        with self._cache_manager.lock:
+            if self._state_manager.time_since_last_frame >= frame_duration:
+                self._state_manager.time_since_last_frame = 0
+                self._advance_frame()
+        
+        # Not using locks in the code below is to prevent lock blocking
         if scale != self._last_scale or direction != self._last_direction:
             self._last_scale = scale
             self._last_direction = direction
@@ -915,12 +929,13 @@ class FramePlayer(AbstractAnimator):
                 return
 
             try:
+                current_frame: Union[str, pygame.Surface] = \
+                    self.frames[self._state_manager.current_state][self._state_manager.frame_index]
+                
                 if self._surface_frames:
-                    surface: pygame.Surface = self.frames[self._state_manager.current_state][self._state_manager.frame_index] 
-                    self.image = self._process_surface_frame(surface)
+                    self.image = self._process_surface_frame(current_frame)
                 else:
-                    frame_name = self.frames[self._state_manager.current_state][self._state_manager.frame_index]
-                    self.image = self._cache_manager.get_cached_image(frame_name)
+                    self.image = self._cache_manager.get_cached_image(current_frame)
 
                 old_center = self.rect.center if self.rect else None
                 self.rect = self.image.get_rect()
@@ -1064,7 +1079,7 @@ class FramePlayer(AbstractAnimator):
     def draw_debug_info(self, surface: pygame.Surface, pos: Tuple[int, int]) -> None:
         """Draw debug info to the given surface"""
         info = self.cache_info
-        font = pygame.font.SysFont(None, _AnimatorMagicNumber.DEBUG_FONT_SIZE)
+        font = pygame.font.SysFont(None, _AnimationMagicNumber.DEBUG_FONT_SIZE)
         
         texts = [
             f"State: {self.state or 'None'}",

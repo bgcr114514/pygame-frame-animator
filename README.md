@@ -1,4 +1,4 @@
-# Pygame Frame Animator
+# Pygame Frame Animation
 
 - [中文文档](#中文文档)
 - [English Document](#english-document)
@@ -37,11 +37,11 @@
 ## 快速开始
 
 ### 安装
-只需将 `animator.py` 文件复制到你的项目目录中！
+只需将 `animation.py` 文件复制到你的项目目录中！
 
 ### 示例
 ```python
-from animator import FramePlayer, AnimatorConfig
+from animation import FramePlayer, AnimationConfig
 import pygame
 
 # 初始化pygame
@@ -59,15 +59,15 @@ for state in ["idle", "walk"]:
         pygame.draw.circle(surf, color, (16, 16), 10 + i*2)
         frames[state].append(surf)
 # 创建动画播放器
-config = AnimatorConfig(
+config = AnimationConfig(
     frames=frames,
     frames_times={"idle": 0.2, "walk": 0.1},
     frame_scale=(64, 64),  # 缩放尺寸
     play_mode="loop"
 )
 
-animator = FramePlayer(config)
-animator.set_state("idle")
+animation = FramePlayer(config)
+animation.set_state("idle")
 
 running = True
 while running:
@@ -79,34 +79,35 @@ while running:
             running = False
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
-                if animator.state == "idle":
-                    animator.set_state("walk")
-                elif animator.state == "walk":
-                    animator.set_state("idle")
+                if animation.state == "idle":
+                    animation.set_state("walk")
+                elif animation.state == "walk":
+                    animation.set_state("idle")
     
     # 更新动画
-    animator.update_frame(dt)
+    animation.update_frame(dt)
     
     # 绘制
     screen.fill((0, 0, 0))
-    animator.rect.center = (400, 300)  # 设置位置
-    animator.draw(screen)
+    animation.rect.center = (400, 300)  # 设置位置
+    animation.draw(screen)
     
     pygame.display.flip()
 
 # 清理资源
-animator.release()
+animation.release()
 pygame.quit()
 ```
 ## API参考
 
 ### FramePlayer 主要方法
 
-#### `update_frame(dt: float, direction: Tuple[bool, bool] = (False, False), scale: Tuple[int, int] = (0, 0))`
+#### `update_frame(dt: float, direction: Tuple[bool, bool] = (False, False), scale: Tuple[int, int] = (0, 0), angle: float = 0.0)`
 更新动画帧
 - `dt`: 时间增量（秒）
 - `direction`: 翻转方向 `(flip_x, flip_y)`
 - `scale`: 缩放尺寸 `(width, height)`
+- `angle`: 旋转角度范围为`[0, 360)`
 
 #### `set_state(state: str, reset_frame: bool = True, keep_progress: bool = False)`
 设置动画状态
@@ -136,24 +137,24 @@ frames = {
 }
 
 # 创建配置
-config = AnimatorConfig(
+config = AnimationConfig(
     frames=frames,
     frames_times={"run": 0.1, "jump": 0.15},
     frame_scale=(48, 48)
 )
 
 # 创建动画播放器（需要提供图片资源字典）
-injection = AnimatorParamInjection(
+injection = AnimationParamInjection(
     image_provider={path: load_image(path) for path in set(sum(frames.values(), []))}
 )
 
-animator = FramePlayer(config, injection)
+animation = FramePlayer(config, injection)
 ```
 ### 事件回调
 ```python
 def on_animation_complete():
     print("动画播放完成！")
-    animator.set_state("idle")
+    animation.set_state("idle")
 
 def on_frame_change(frame_index):
     print(f"切换到第 {frame_index} 帧")
@@ -162,26 +163,26 @@ def on_state_change(new_state):
     print(f"状态切换到: {new_state}")
 
 # 添加回调
-animator.add_complete_callback(on_animation_complete)
-animator.add_frame_change_callback(on_frame_change)
-animator.add_state_change_callback(on_state_change)
+animation.add_complete_callback(on_animation_complete)
+animation.add_frame_change_callback(on_frame_change)
+animation.add_state_change_callback(on_state_change)
 ```
 
 ### 播放模式控制
 ```python
 # 设置播放模式
-animator.set_play_mode("once")    # 播放一次
-animator.set_play_mode("loop")    # 循环播放
-animator.set_play_mode("pingpong") # 往返播放
+animation.set_play_mode("once")    # 播放一次
+animation.set_play_mode("loop")    # 循环播放
+animation.set_play_mode("pingpong") # 往返播放
 
 # 控制播放
-animator.pause()    # 暂停
-animator.resume()   # 继续播放
-animator.rewind()   # 重置到开始
+animation.pause()    # 暂停
+animation.resume()   # 继续播放
+animation.rewind()   # 重置到开始
 ```
 
 ## 参数注入配置选项
-### AnimatorConfig 参数
+### AnimationConfig 参数
 | 参数	| 类型	 | 说明	  | 默认值    |
 | :--------: | :--------: | :--------: | :--------: |
 | `frames` | `Dict[str, List[str, pygame.Surface]]` |	动画帧数据	|必填 |
@@ -207,9 +208,9 @@ animator.rewind()   # 重置到开始
 
 设置缓存最大容量，单位为帧数。当缓存超过最大容量时，会自动删除最早的帧。
 
-**注：`max_cache_size` 不能小于 `10`(`_AnimatorMagicNumber.CACHE_MIN_SIZE`)**
+**注：`max_cache_size` 不能小于 `10`(`_AnimationMagicNumber.CACHE_MIN_SIZE`)**
 
-### AnimatorParamInjection 参数
+### AnimationParamInjection 参数
 | 参数	| 类型	 | 说明	  | 默认值    | 提供为`None`时`FramePlayer.__init__`初始化给予的值 |
 | :--------: | :--------: | :--------: | :--------: | :--------: |
 | `image_provider` | `Optional[Dict[str, pygame.Surface]]` |	图片数据	| `None` | `{}` |
@@ -228,13 +229,13 @@ A: 内置LRU缓存系统会自动管理内存使用，当缓存达到上限时�
 A: 是的！所有缓存操作都是线程安全的(使用了`threading.RLock()`)，可以在多线程环境中使用。
 
 ### Q: 如何释放资源？
-A: 调用 `animator.release()` 或使用上下文管理器：
+A: 调用 `animation.release()` 或使用上下文管理器：
 
 ```python
-with FramePlayer(config) as animator:
+with FramePlayer(config) as animation:
     ...
 ```
-虽然不推荐用`__del__`或`del animator`自动销毁，但`__del__`直接调用`release()`，也可以正常释放（在没有`release()`使用`__del__`会有警告）
+虽然不推荐用`__del__`或`del animation`自动销毁，但`__del__`直接调用`release()`，也可以正常释放（在没有`release()`使用`__del__`会有警告）
 
 ## 贡献
 欢迎提交Issue和Pull Request！对于单文件项目，建议：
@@ -257,22 +258,22 @@ with FramePlayer(config) as animator:
 
 ### 使用FramePlayerEasilyGenerator
 ```python
-from animator import FramePlayerEasilyGenerator, AnimatorConfig
+from animation import FramePlayerEasilyGenerator, AnimationConfig
 
 # 简单创建方式
-animator = FramePlayerEasilyGenerator.create(
+animation = FramePlayerEasilyGenerator.create(
     frames={"idle": ["idle_1.png", "idle_2.png"]},
     frames_times={"idle": 0.2}
 )
 
 # 完整参数创建方式
-animator = FramePlayerEasilyGenerator.create(
-    config=AnimatorConfig(
+animation = FramePlayerEasilyGenerator.create(
+    config=AnimationConfig(
         frames={"walk": ["walk_1.png", "walk_2.png"]},
         frames_times={"walk": 0.1},
         play_mode="pingpong"
     ),
-    injection=AnimatorParamInjection(
+    injection=AnimationParamInjection(
         logger_instance=custom_logger
     )
 )
@@ -294,27 +295,27 @@ times = {
     "jump": 0.2
 }
 
-config = AnimatorConfig(
+config = AnimationConfig(
     frames=states,
     frames_times=times,
     play_mode="loop"
 )
 
-animator = FramePlayer(config)
+animation = FramePlayer(config)
 
 # 根据游戏逻辑切换状态
 def handle_input():
     if player.is_walking():
-        animator.set_state("walk")
+        animation.set_state("walk")
     elif player.is_jumping():
-        animator.set_state("jump")
+        animation.set_state("jump")
     else:
-        animator.set_state("idle")
+        animation.set_state("idle")
 ```
 
 ## 性能优化建议
 1. 对于大量动画，适当增加max_cache_size
-2. 重用AnimatorConfig对象创建多个动画播放器
+2. 重用AnimationConfig对象创建多个动画播放器
 3. 对于不常用的动画状态，可以手动调用clear_cache()
 4. 使用Surface帧比图片路径加载更快
 
@@ -369,11 +370,11 @@ A high-performance, easy-to-integrate Pygame animation player, with all function
 ## Quick Start
 
 ### Installation
-Simply copy the `animator.py` file into your project directory!
+Simply copy the `animation.py` file into your project directory!
 
 ### Example
 ```python
-from animator import FramePlayer, AnimatorConfig
+from animation import FramePlayer, AnimationConfig
 import pygame
 
 # Initialize pygame
@@ -391,15 +392,15 @@ for state in ["idle", "walk"]:
         pygame.draw.circle(surf, color, (16, 16), 10 + i*2)
         frames[state].append(surf)
 # Create the animation player
-config = AnimatorConfig(
+config = AnimationConfig(
     frames=frames,
     frames_times={"idle": 0.2, "walk": 0.1},
     frame_scale=(64, 64),  # Scale size
     play_mode="loop"
 )
 
-animator = FramePlayer(config)
-animator.set_state("idle")
+animation = FramePlayer(config)
+animation.set_state("idle")
 
 running = True
 while running:
@@ -411,34 +412,35 @@ while running:
             running = False
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
-                if animator.state == "idle":
-                    animator.set_state("walk")
-                elif animator.state == "walk":
-                    animator.set_state("idle")
+                if animation.state == "idle":
+                    animation.set_state("walk")
+                elif animation.state == "walk":
+                    animation.set_state("idle")
     
     # Update animation
-    animator.update_frame(dt)
+    animation.update_frame(dt)
     
     # Draw
     screen.fill((0, 0, 0))
-    animator.rect.center = (400, 300)  # Set position
-    animator.draw(screen)
+    animation.rect.center = (400, 300)  # Set position
+    animation.draw(screen)
     
     pygame.display.flip()
 
 # Cleanup resources
-animator.release()
+animation.release()
 pygame.quit()
 ```
 ## API Reference
 
 ### FramePlayer Main Methods
 
-#### `update_frame(dt: float, direction: Tuple[bool, bool] = (False, False), scale: Tuple[int, int] = (0, 0))`
+#### `update_frame(dt: float, direction: Tuple[bool, bool] = (False, False), scale: Tuple[int, int] = (0, 0), angle: float = 0.0)`
 Update the animation frame
 - `dt`: Time delta (seconds)
 - `direction`: Flip direction `(flip_x, flip_y)`
 - `scale`: Scaling dimensions `(width, height)`
+- `angle`: Rotation angle range `[0, 360)`
 
 #### `set_state(state: str, reset_frame: bool = True, keep_progress: bool = False)`
 Set the animation state
@@ -468,24 +470,24 @@ frames = {
 }
 
 # Create configuration
-config = AnimatorConfig(
+config = AnimationConfig(
     frames=frames,
     frames_times={"run": 0.1, "jump": 0.15},
     frame_scale=(48, 48)
 )
 
 # Create animation player (requires providing an image resource dictionary)
-injection = AnimatorParamInjection(
+injection = AnimationParamInjection(
     image_provider={path: load_image(path) for path in set(sum(frames.values(), []))}
 )
 
-animator = FramePlayer(config, injection)
+animation = FramePlayer(config, injection)
 ```
 ### Event Callbacks
 ```python
 def on_animation_complete():
     print("Animation complete!")
-    animator.set_state("idle")
+    animation.set_state("idle")
 
 def on_frame_change(frame_index):
     print(f"Switched to frame {frame_index}")
@@ -494,26 +496,26 @@ def on_state_change(new_state):
     print(f"State changed to: {new_state}")
 
 # Add callbacks
-animator.add_complete_callback(on_animation_complete)
-animator.add_frame_change_callback(on_frame_change)
-animator.add_state_change_callback(on_state_change)
+animation.add_complete_callback(on_animation_complete)
+animation.add_frame_change_callback(on_frame_change)
+animation.add_state_change_callback(on_state_change)
 ```
 
 ### Playback Mode Control
 ```python
 # Set playback mode
-animator.set_play_mode("once")    # Play once
-animator.set_play_mode("loop")    # Loop playback
-animator.set_play_mode("pingpong") # Pingpong playback
+animation.set_play_mode("once")    # Play once
+animation.set_play_mode("loop")    # Loop playback
+animation.set_play_mode("pingpong") # Pingpong playback
 
 # Control playback
-animator.pause()    # Pause
-animator.resume()   # Resume playback
-animator.rewind()   # Reset to start
+animation.pause()    # Pause
+animation.resume()   # Resume playback
+animation.rewind()   # Reset to start
 ```
 
 ## Parameter Injection Configuration Options
-### AnimatorConfig Parameters
+### AnimationConfig Parameters
 | Parameter | Type | Description | Default |
 | :--------: | :--------: | :--------: | :--------: |
 | `frames` | `Dict[str, List[str, pygame.Surface]]` | Animation frame data | Required |
@@ -537,9 +539,9 @@ Sets the scaling dimensions for frames. Default is `(0, 0)`, meaning no scaling.
 
 Sets the maximum cache capacity, measured in number of frames. When the cache exceeds the maximum capacity, the oldest frames are automatically removed.
 
-**Note: `max_cache_size` cannot be less than `10` (`_AnimatorMagicNumber.CACHE_MIN_SIZE`)**
+**Note: `max_cache_size` cannot be less than `10` (`_AnimationMagicNumber.CACHE_MIN_SIZE`)**
 
-### AnimatorParamInjection Parameters
+### AnimationParamInjection Parameters
 | Parameter | Type | Description | Default | Value Initialized by `FramePlayer.__init__` if Provided as `None` |
 | :--------: | :--------: | :--------: | :--------: | :--------: |
 | `image_provider` | `Optional[Dict[str, pygame.Surface]]` | Image data | `None` | `{}` |
@@ -558,13 +560,13 @@ A: The built-in LRU cache system automatically manages memory usage, removing th
 A: Yes! All cache operations are thread-safe (using `threading.RLock()`), and can be used in multi-threaded environments.
 
 ### Q: How to release resources?
-A: Call `animator.release()` or use the context manager:
+A: Call `animation.release()` or use the context manager:
 
 ```python
-with FramePlayer(config) as animator:
+with FramePlayer(config) as animation:
     ...
 ```
-Although not recommended to rely on `__del__` or `del animator` for automatic cleanup, `__del__` directly calls `release()`, so it can also release normally (a warning will be issued if `__del__` is used without `release()` having been called).
+Although not recommended to rely on `__del__` or `del animation` for automatic cleanup, `__del__` directly calls `release()`, so it can also release normally (a warning will be issued if `__del__` is used without `release()` having been called).
 
 ## Contributing
 Welcome to submit Issues and Pull Requests! For a single-file project, it is recommended to:
@@ -584,22 +586,22 @@ If you encounter problems:
 
 ### Using FramePlayerEasilyGenerator
 ```python
-from animator import FramePlayerEasilyGenerator, AnimatorConfig
+from animation import FramePlayerEasilyGenerator, AnimationConfig
 
 # Simple creation method
-animator = FramePlayerEasilyGenerator.create(
+animation = FramePlayerEasilyGenerator.create(
     frames={"idle": ["idle_1.png", "idle_2.png"]},
     frames_times={"idle": 0.2}
 )
 
 # Full parameter creation method
-animator = FramePlayerEasilyGenerator.create(
-    config=AnimatorConfig(
+animation = FramePlayerEasilyGenerator.create(
+    config=AnimationConfig(
         frames={"walk": ["walk_1.png", "walk_2.png"]},
         frames_times={"walk": 0.1},
         play_mode="pingpong"
     ),
-    injection=AnimatorParamInjection(
+    injection=AnimationParamInjection(
         logger_instance=custom_logger
     )
 )
@@ -621,27 +623,27 @@ times = {
     "jump": 0.2
 }
 
-config = AnimatorConfig(
+config = AnimationConfig(
     frames=states,
     frames_times=times,
     play_mode="loop"
 )
 
-animator = FramePlayer(config)
+animation = FramePlayer(config)
 
 # Switch states based on game logic
 def handle_input(player):
     if player.is_walking():
-        animator.set_state("walk")
+        animation.set_state("walk")
     elif player.is_jumping():
-        animator.set_state("jump")
+        animation.set_state("jump")
     else:
-        animator.set_state("idle")
+        animation.set_state("idle")
 ```
 
 ## Performance Optimization Suggestions
 1. For a large number of animations, appropriately increase `max_cache_size`
-2. Reuse `AnimatorConfig` objects to create multiple animation players
+2. Reuse `AnimationConfig` objects to create multiple animation players
 3. For infrequently used animation states, you can manually call `clear_cache()`
 4. Using Surface frames is faster than loading from image paths
 

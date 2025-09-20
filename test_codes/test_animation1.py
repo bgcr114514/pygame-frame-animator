@@ -1,4 +1,4 @@
-from animator import FramePlayer, AnimatorConfig
+from animation import FramePlayer, AnimationConfig
 import pygame
 
 # Initialize pygame
@@ -15,17 +15,16 @@ for state in ["idle", "walk"]:
         color = (255, 100 + i*40, 50) if state == "idle" else (50, 100 + i*40, 255)
         pygame.draw.circle(surf, color, (16, 16), 10 + i*2)
         frames[state].append(surf)
-        
 # Create the animation player
-config = AnimatorConfig(
+config = AnimationConfig(
     frames=frames,
     frames_times={"idle": 0.2, "walk": 0.1},
     frame_scale=(64, 64),  # Scale size
     play_mode="loop"
 )
 
-animator = FramePlayer(config)
-animator.set_state("idle")
+animation = FramePlayer(config)
+animation.set_state("idle")
 
 running = True
 while running:
@@ -37,21 +36,21 @@ while running:
             running = False
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
-                if animator.state == "idle":
-                    animator.set_state("walk")
-                elif animator.state == "walk":
-                    animator.set_state("idle")
+                if animation.state == "idle":
+                    animation.set_state("walk")
+                elif animation.state == "walk":
+                    animation.set_state("idle")
     
     # Update animation
-    animator.update_frame(dt)
+    animation.update_frame(dt)
     
     # Draw
     screen.fill((0, 0, 0))
-    animator.rect.center = (400, 300)  # Set position
-    animator.draw(screen)
+    animation.rect.center = (400, 300)  # Set position
+    animation.draw(screen)
     
     pygame.display.flip()
 
 # Cleanup resources
-animator.release()
+animation.release()
 pygame.quit()
