@@ -1,4 +1,4 @@
-# Pygame Frame Animation
+# Pygame Frame Animator
 
 - [中文文档](#中文文档)
 - [English Document](#english-document)
