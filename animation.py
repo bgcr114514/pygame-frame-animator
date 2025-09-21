@@ -18,7 +18,7 @@ class AbstractAnimationPlayer(ABC, pygame.sprite.Sprite):
     """animator abstract base class, define unified interface for all"""
     
     @abstractmethod
-    def update_frame(self, dt: float, direction: Direction = (False, False), scale: Scale = (0, 0)) -> None:
+    def update_frame(self, dt: float, direction: Direction = (False, False), scale: Scale = (0, 0), angle: float = 0.0) -> None:
         """update frame"""
         pass
     
@@ -587,7 +587,7 @@ class FramePlayer(AbstractAnimationPlayer):
         self.frame_scale: Scale = config.frame_scale
         self.play_mode: PlayMode = config.play_mode
         self.direction: Direction = (False, False)
-        self.angle: float = .0
+        self.angle: float = 0.0
         self._logger = injection.logger_instance or DefaultLogger()
 
         self._process_init_frame(config)
@@ -615,7 +615,7 @@ class FramePlayer(AbstractAnimationPlayer):
         # track status
         self._last_scale: Scale = (0, 0)
         self._last_direction: Direction = (False, False)
-        self._last_angle: float = .0
+        self._last_angle: float = 0.0
         self.image: Optional[pygame.Surface] = None
         self.rect: Optional[pygame.Rect] = None
         self._released = False
@@ -649,7 +649,7 @@ class FramePlayer(AbstractAnimationPlayer):
             img = pygame.transform.scale(img, self.frame_scale)
         if any(self.direction):
             img = pygame.transform.flip(img, *self.direction)
-        if self.angle % 360 != .0:
+        if self.angle % 360 != 0.0:
             img = pygame.transform.rotate(img, self.angle)
         return img
 
@@ -864,7 +864,7 @@ class FramePlayer(AbstractAnimationPlayer):
             dt: float = 1/60, 
             direction: Direction = (False, False), 
             scale: Scale = (0, 0),
-            angle: float = .0
+            angle: float = 0.0
         ) -> None:
         """Update animation frame
                 Args:
