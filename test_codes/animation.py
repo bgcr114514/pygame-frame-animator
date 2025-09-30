@@ -216,16 +216,19 @@ class _FrameCacheManager:
     
     def release(self, image: pygame.Surface) -> None:
         """Release the cache"""
-        if pygame.get_init():
-            surfaces = [image] + [
-                v for v in self._image_cache.values()
-                if isinstance(v, pygame.Surface)
-            ]
-            for surf in surfaces:
-                try:
-                    surf.fill((0, 0, 0, 0))
-                except (pygame.error, AttributeError):
-                    self._deps.logger.warning(f"Failed to clear surface: {surf}")
+        if not pygame.get_init():
+            return
+        
+        surfaces = [image] + [
+            v for v in self._image_cache.values()
+            if isinstance(v, pygame.Surface)
+        ]
+        for surf in surfaces:
+            try:
+                surf.fill((0, 0, 0, 0))
+            except (pygame.error, AttributeError):
+                self._deps.logger.warning(f"Failed to clear surface: {surf}")
+        self.clear()
     
     @property
     def lock(self) -> RLock:
@@ -338,7 +341,7 @@ class _FrameStateManager:
         else:
             self._logger.warning("Ignore non callable objects")
 
-    def _handle_animation_end(self) -> None:
+    def handle_animation_end(self) -> None:
         """Handling animation end events (delegates to state_manager)"""
         for callback in self._on_complete_callbacks:
             try:
@@ -371,7 +374,7 @@ class _FrameStateManager:
             except Exception as error:
                 self._logger.error(f"State change callback execution failed: {str(error)}")
 
-    def _handle_frame_change(self) -> None:
+    def handle_frame_change(self) -> None:
         """Handle frame change event"""
         for callback in self._on_frame_change_callbacks:
             try:
@@ -633,7 +636,10 @@ class FramePlayer(AbstractAnimationPlayer):
         _first_frame = next(iter(config.frames.values()))
         if _first_frame != [] and isinstance(_first_frame[0], pygame.Surface):
             self._surface_frames = True
-            self.frames = {k: [frame.copy() for frame in v] for k, v in config.frames.items()}
+            self.frames = {
+                k: [frame.copy() for frame in v] 
+                for k, v in config.frames.items()
+            }
         else:
             self.frames = config.frames
 
@@ -820,7 +826,6 @@ class FramePlayer(AbstractAnimationPlayer):
     def set_state(self, state: str, reset_frame: bool = True, keep_progress: bool = False) -> None:
         """Set now playing state (delegates to state_manager)"""
         self._state_manager.set_state(state, reset_frame, keep_progress)
-        self._state_manager._handle_state_change(state)
     
     def rewind(self) -> None:
         """Reset to the starting frame (delegates to state_manager)"""
@@ -847,7 +852,7 @@ class FramePlayer(AbstractAnimationPlayer):
 
     def _handle_animation_end(self) -> None:
         """Handling animation end events (delegates to state_manager)"""
-        self._state_manager._handle_animation_end()
+        self._state_manager.handle_animation_end()
 
     def pause(self) -> None:
         """Pause animation"""
@@ -909,7 +914,7 @@ class FramePlayer(AbstractAnimationPlayer):
             if next_index < 0 or next_index >= frame_count:
                 self._pingpong_direction *= -1
                 next_index = max(0, min(next_index + self._pingpong_direction * 2, frame_count - 1))
-                self._state_manager._handle_animation_end()            
+                self._state_manager.handle_animation_end()            
             self._state_manager.frame_index = next_index
         elif self.play_mode == "loop":
             self._state_manager.frame_index = (self._state_manager.frame_index + 1) % frame_count
@@ -917,7 +922,7 @@ class FramePlayer(AbstractAnimationPlayer):
             self._state_manager.frame_index += 1
             if self._state_manager.frame_index >= frame_count:
                 self._state_manager.frame_index = frame_count - 1
-                self._state_manager._handle_animation_end()
+                self._state_manager.handle_animation_end()
                 self.pause()
         if self._state_manager.frame_index != prev_frame_index:
             self._update_image()
@@ -942,7 +947,7 @@ class FramePlayer(AbstractAnimationPlayer):
                 if old_center:
                     self.rect.center = old_center
 
-                self._handle_frame_change()
+                self._state_manager.handle_frame_change()
             except Exception as error:
                 self._logger.error(f"Update image failed: {str(error)}")
                 self.image = self._create_error_surface()
@@ -964,9 +969,6 @@ class FramePlayer(AbstractAnimationPlayer):
         """
         self._state_manager.add_state_change_callback(callback)
 
-    def _handle_frame_change(self) -> None:
-        """Handle frame change event"""
-        self._state_manager._handle_frame_change()
     # endregion
 
     # region #################### resources management ####################
@@ -988,7 +990,6 @@ class FramePlayer(AbstractAnimationPlayer):
             try:
                 self._state_manager.release()
                 self._cache_manager.release(self.image)
-                self.clear_cache()
                 self.image = None
                 self.rect = None
                 return True
@@ -1001,8 +1002,9 @@ class FramePlayer(AbstractAnimationPlayer):
                 self._cache_manager = None
                 super().kill()
                 self._logger.info("Resource release status updated")
+                self._logger = None
     
-    def kill(self):
+    def kill(self) -> None:
         self.release()
                 
     def __del__(self) -> None:
@@ -1018,20 +1020,12 @@ class FramePlayer(AbstractAnimationPlayer):
             released = getattr(self, '_released', False)
             if released:
                 return
-
-            has_logger = hasattr(self, '_logger')
-            has_cache_manager = hasattr(self, '_cache_manager')
             
-            if not has_logger and not has_cache_manager:
+            if not (hasattr(self, '_logger') or hasattr(self, '_cache_manager')):
+                print("WARNING: Animator object is being deleted without being initialized `cache_manager`.")
                 return
                 
-            logger = None
-            if has_logger:
-                logger = self._logger
-            else:
-                print("WARNING: Animator object is being deleted without being released. Please use the release() method instead")
-                return
-            
+            logger = self._logger
             logger.warning("Animator object is being deleted without being released. Please use the release() method instead")
             
             try:

@@ -24,7 +24,6 @@ config = AnimationConfig(
 )
 
 animation = FramePlayer(config)
-animation.set_state("idle")
 
 running = True
 while running:
