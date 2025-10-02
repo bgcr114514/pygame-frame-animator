@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Tuple, NoReturn, Union, Literal, TypeAlias, Optional, Final, overload, get_args
+from typing import (Dict, List, Tuple, NoReturn, Union, Literal, TypeAlias, Optional, Final, overload, get_args)
 from collections.abc import Callable
 from abc import ABC, abstractmethod
 from collections import OrderedDict
@@ -18,12 +18,19 @@ class AbstractAnimationPlayer(ABC, pygame.sprite.Sprite):
     """animator abstract base class, define unified interface for all"""
     
     @abstractmethod
-    def update_frame(self, dt: float, direction: Direction = (False, False), scale: Scale = (0, 0), angle: float = 0.0) -> None:
+    def update_frame(self, 
+                     dt: float, 
+                     direction: Direction = (False, False), 
+                     scale: Scale = (0, 0), 
+                     angle: float = 0.0) -> None:
         """update frame"""
         pass
     
     @abstractmethod
-    def set_state(self, state: str, reset_frame: bool = True, keep_progress: bool = False) -> None:
+    def set_state(self, 
+                  state: str, 
+                  reset_frame: bool = True, 
+                  keep_progress: bool = False) -> None:
         """set animation state"""
         pass
     
@@ -103,9 +110,11 @@ class _AnimationMagicNumber:
     DEBUG_FONT_SIZE: Final[int] = 16
 
     def __setattr__(self, name, value) -> None:
-        if hasattr(self, name):
-            raise AttributeError(f"Cannot modify immutable attribute '{name}'")
-        super().__setattr__(name, value)
+        if not hasattr(self, name):
+            super().__setattr__(name, value)
+            return
+        raise AttributeError(f"Cannot modify immutable attribute '{name}'")
+        
     
     def __delattr__(self, name) -> NoReturn:
         raise AttributeError(f"Cannot delete immutable attribute '{name}'")
@@ -127,14 +136,14 @@ class _FrameCacheManager:
         This implementation uses a reentrant lock (RLock) to ensure thread safety.
         The choice of RLock over simpler Lock is intentional:
         
-        1. **Reentrancy Needed**: Cache operations might be called through complex
+        1. Reentrancy Needed: Cache operations might be called through complex
            callback chains where the same thread could re-enter the cache.
         
-        2. **Moderate Performance**: Image loading and transformation are relatively
+        2. Moderate Performance: Image loading and transformation are relatively
            expensive operations, so the slight overhead of RLock is negligible
            compared to the image processing time.
         
-        3. **Future Optimization Ready**: If profiling identifies this as a bottleneck,
+        3. Future Optimization Ready: If profiling identifies this as a bottleneck,
            the implementation can be easily replaced with a more concurrent solution
            without changing the public interface.
     """
@@ -164,7 +173,9 @@ class _FrameCacheManager:
             ValueError: Call this method when using Surface as a frame
         """
         if self._deps.surface_frames():
-            raise ValueError("This method should not be called when using Surface as a frame")
+            raise ValueError(
+                "This method shouldn't be called when using Surface as a frame"
+            )
 
         cache_key = self._get_cache_key(frame_name)
         
@@ -186,7 +197,9 @@ class _FrameCacheManager:
                 self._deps.logger.info(f"Cached new image: {cache_key}")
                 return img
             except (pygame.error, KeyError) as errors:
-                self._deps.logger.error(f"Image processing failed: {frame_name} - {str(errors)}")
+                self._deps.logger.error(
+                    f"Image processing failed: {frame_name} - {str(errors)}"
+                )
                 return self._deps.create_error_surface()
             
     def _get_cache_key(self, frame_name: str) -> Tuple[str, Tuple[int, int], Tuple[bool, bool]]:
@@ -248,7 +261,9 @@ class _FrameCacheManager:
     @property
     def info(self) -> Dict[str, Union[int, List[str]]]:
         with self.lock:
-            sample_keys = list(self.image_cache.keys())[:_AnimationMagicNumber.SAMPLE_DISPLAY_COUNT]
+            sample_keys = list(self.image_cache.keys())[
+                :_AnimationMagicNumber.SAMPLE_DISPLAY_COUNT
+            ]
             return {
                 "cache_size": len(self.image_cache),
                 "max_size": self.max_cache_size,
@@ -288,21 +303,23 @@ class _FrameStateManager:
     def set_state(
         self, 
         state: str, 
-        reset_frame: bool = True,
-        keep_progress: bool = False
+        reset_frame: bool = True
     ) -> None:
         if state not in self.frames:
-            raise KeyError(f"Invalid state: {state}. Available states: {list(self.frames.keys())}")
+            available_states = list(self.frames.keys())
+            raise KeyError(
+                f"Invalid state: {state}. Available states: {available_states}"
+            )
             
-        if state != self.current_state:
-            self.current_state = state
-            if reset_frame:
-                self.frame_index = 0
-                self.time_since_last_frame = 0
-            elif not keep_progress:
-                self.time_since_last_frame = 0
+        if state == self.current_state and not reset_frame:
+            return
+        
+        self.current_state = state
+        if reset_frame:
+            self.frame_index = 0
+            self.time_since_last_frame = 0
                 
-            self._handle_state_change(state)
+        self._handle_state_change(state)
 
     def rewind(self) -> None:
         self.frame_index = 0
@@ -347,7 +364,9 @@ class _FrameStateManager:
             try:
                 callback()
             except Exception as error:
-                self._logger.error(f"Callback execution failed: {str(error)}")
+                self._logger.error(
+                    f"Callback execution failed: {str(error)}"
+                )
 
     def pause(self) -> None:
         """Pause the animation"""
@@ -372,7 +391,9 @@ class _FrameStateManager:
             try:
                 callback(new_state)
             except Exception as error:
-                self._logger.error(f"State change callback execution failed: {str(error)}")
+                self._logger.error(
+                    f"State change callback execution failed: {str(error)}"
+                )
 
     def handle_frame_change(self) -> None:
         """Handle frame change event"""
@@ -380,7 +401,9 @@ class _FrameStateManager:
             try:
                 callback(self.frame_index)
             except Exception as error:
-                self._logger.error(f"Frame change callback execution failed: {str(error)}")
+                self._logger.error(
+                    f"Frame change callback execution failed: {str(error)}"
+                )
 
 @dataclass
 class AnimationConfig:
@@ -394,8 +417,6 @@ class AnimationConfig:
 class AnimationParamInjection:
     image_provider: Optional[Dict[str, pygame.Surface]] = None
     logger_instance: Optional[AbstractLogger] = None
-    state_manager: Optional[_FrameStateManager] = None
-    cache_manager: Optional[_FrameCacheManager] = None
 
 class FramePlayerEasilyGenerator: 
     """A helper class to create a FramePlayer instance with given parameters"""
@@ -471,7 +492,10 @@ class FramePlayerEasilyGenerator:
             max_cache_size: cache size
         """
         if isinstance(frames_times, (int, float)):
-            frames_times = {state: float(frames_times) for state in frames.keys()}
+            frames_times = {
+                state: float(frames_times)
+                for state in frames.keys()
+            }
         else:
             frames_times = frames_times
         
@@ -596,7 +620,7 @@ class FramePlayer(AbstractAnimationPlayer):
         self._process_init_frame(config)
 
         # systems init
-        self._cache_manager = injection.cache_manager or \
+        self._cache_manager = \
             _FrameCacheManager(
                 _CacheManagerDeps(
                     config.max_cache_size,
@@ -608,7 +632,7 @@ class FramePlayer(AbstractAnimationPlayer):
                     self._logger
                 )
             )
-        self._state_manager = injection.state_manager or \
+        self._state_manager = \
             _FrameStateManager(
                 self.frames,
                 self._logger
@@ -625,9 +649,13 @@ class FramePlayer(AbstractAnimationPlayer):
 
         # Initialize image
         if self._surface_frames:
-            self.image = self._process_surface_frame(self.frames[self._state_manager.current_state][0])
+            self.image = self._process_surface_frame(
+                self.frames[self._state_manager.current_state][0]
+                )
         else:
-            self.image = self._cache_manager.get_cached_image(str(self.frames[self._state_manager.current_state][0]))
+            self.image = self._cache_manager.get_cached_image(
+                str(self.frames[self._state_manager.current_state][0])
+            )
         self.rect = self.image.get_rect()
 
     def _process_init_frame(self, config: AnimationConfig) -> None:
@@ -738,24 +766,20 @@ class FramePlayer(AbstractAnimationPlayer):
             raise TypeError("injection must be AnimatorParamInjection")
         image_provider = injection.image_provider
         logger_instance = injection.logger_instance
-        state_manager = injection.state_manager
-        cache_manager = injection.cache_manager
         if image_provider is not None and not isinstance(image_provider, dict):
             raise TypeError("image_provider must be a dict")
         elif image_provider is not None:
             for name, img in image_provider.items():
                 if not isinstance(img, pygame.Surface):
-                    raise TypeError(f"image_provider[{name}] must be a pygame.Surface")
-        if logger_instance is not None and not isinstance(logger_instance, AbstractLogger):
+                    raise TypeError(
+                        f"image_provider[{name}] must be a pygame.Surface"
+                    )
+        if (logger_instance is not None and
+            not isinstance(logger_instance, AbstractLogger)):
             raise TypeError("logger_instance must be a AbstractLogger")
-        if state_manager is not None and not isinstance(state_manager, _FrameStateManager):
-            raise TypeError("state_manager must be a _FrameStateManager")
-        if cache_manager is not None and not isinstance(cache_manager, _FrameCacheManager):
-            raise TypeError("cache_manager must be a _FrameCacheManager")
 
         
-    @staticmethod
-    def _vaildate_init_config(config: AnimationConfig) -> None:
+    def _vaildate_init_config(self, config: AnimationConfig) -> None:
         if not isinstance(config, AnimationConfig):
             raise TypeError("config must be AnimatorConfig")
         
@@ -766,31 +790,70 @@ class FramePlayer(AbstractAnimationPlayer):
                 raise ValueError("frames must not be empty")
             
             if frames.keys() != frames_times.keys():
-                missing = set(frames.keys()).symmetric_difference(frames_times.keys()) # A.symmetric_difference(B) = (A △ B) = (A ∪ B) - (A ∩ B)
-                raise ValueError(f"States definition incomplete, missing: {missing}")
+                missing = (set(frames.keys())
+                           .symmetric_difference(frames_times.keys())) 
+                # A.symmetric_difference(B) = (A △ B) = (A ∪ B) - (A ∩ B)
+                raise ValueError(
+                    f"States definition incomplete, missing: {missing}"
+                )
 
             for state, frame_list in frames.items():
-                if len(frame_list) == 0:
-                    raise ValueError(f"frames[\"{state}\"] must not be empty")
+                if not frame_list:
+                    raise ValueError(f'frames["{state}"] must not be empty')
                 
-                if not isinstance(frame_list, list) or not all(isinstance(frame, str) or isinstance(frame, pygame.Surface) for frame in frame_list):
-                    raise TypeError(f"frames[\"{state}\"] must be a List[str] or List[pygame.Surface]")
+                if not isinstance(frame_list, list):
+                    raise TypeError(f'frames["{state}"] must be a list')
                 
+                self._validate_and_load_frames(state, frame_list)
+            
             for state, frame_time in frames_times.items():
                 if not isinstance(frame_time, (float, int)):
-                    raise TypeError(f"frames_time[\"{state}\"] must be a float")
+                    raise TypeError(f'frames_time["{state}"] must be a float')
         except AttributeError:
             raise TypeError("frames and frames_time must be dicts")  
          
         frame_scale = config.frame_scale
         max_cache_size = config.max_cache_size
         play_mode = config.play_mode
-        if not isinstance(frame_scale, tuple) or not all(isinstance(i, (int, float)) for i in frame_scale):
+        if not (isinstance(frame_scale, tuple) or 
+                all(isinstance(i, (int, float)) for i in frame_scale)):
             raise TypeError("frame_scale must be a tuple of two numbers")
-        if not isinstance(max_cache_size, int) or max_cache_size < _AnimationMagicNumber.DEFAULT_MAX_CHACH_SIZE:
-            raise ValueError(f"max_cache_size must be an integer greater than or equal to {_AnimationMagicNumber.DEFAULT_MAX_CHACH_SIZE}")
+        if (not isinstance(max_cache_size, int) or
+            max_cache_size < _AnimationMagicNumber.DEFAULT_MAX_CHACH_SIZE):
+            raise ValueError(
+                f"max_cache_size must be an integer greater than or equal to {
+                    _AnimationMagicNumber.DEFAULT_MAX_CHACH_SIZE
+                }"
+            )
         if not play_mode in get_args(PlayMode):
-            raise ValueError(f"Invalid play mode: {play_mode}, play mode must be one of {get_args(PlayMode)}")
+            raise ValueError(
+                f"Invalid play mode: {play_mode},"
+                "play mode must be one of {get_args(PlayMode)}"
+            )
+
+    def _validate_and_load_frames(self, state: str, frame_list: list) -> None:
+        """validate and load frame images from file path or pygame.Surface
+        Args:
+            state: animation state name
+            frame_list: frame image list (str or pygame.Surface)
+        Raises:
+            TypeError: Invalid frame type"""
+        for i, frame in enumerate(frame_list):
+            if not isinstance(frame, (str, pygame.Surface)):
+                raise TypeError(
+                    f'frames["{state}"][{i}] must be str, filepath or pygame.Surface, '
+                    f'got {type(frame).__name__}'
+                )
+            
+            if isinstance(frame, str) and frame not in self._image_source:
+                try:
+                    loaded_surface = pygame.image.load(frame)
+                    self._image_source[frame] = loaded_surface
+                except (pygame.error, FileNotFoundError) as e:
+                    raise ValueError(
+                        f'frames["{state}"][{i}]: '
+                        'Cannot load image resource "{frame}" - {e}'
+                    )
 
     @staticmethod
     def _create_error_surface() -> pygame.Surface:
@@ -823,9 +886,15 @@ class FramePlayer(AbstractAnimationPlayer):
     # endregion
 
     # region #################### Animation Control System ####################
-    def set_state(self, state: str, reset_frame: bool = True, keep_progress: bool = False) -> None:
+    def get_state(self) -> str | None:
+        return self._state_manager.current_state
+    
+    def set_state(self, 
+                  state: str, 
+                  reset_frame: bool = True) -> None:
         """Set now playing state (delegates to state_manager)"""
-        self._state_manager.set_state(state, reset_frame, keep_progress)
+        with self._cache_manager.lock:
+            self._state_manager.set_state(state, reset_frame)
     
     def rewind(self) -> None:
         """Reset to the starting frame (delegates to state_manager)"""
@@ -934,8 +1003,10 @@ class FramePlayer(AbstractAnimationPlayer):
                 return
 
             try:
+                current_frames_list: List[Union[str, pygame.Surface]] = \
+                    self.frames[self._state_manager.current_state]
                 current_frame: Union[str, pygame.Surface] = \
-                    self.frames[self._state_manager.current_state][self._state_manager.frame_index]
+                    current_frames_list[self._state_manager.frame_index]
                 
                 if self._surface_frames:
                     self.image = self._process_surface_frame(current_frame)
@@ -994,7 +1065,10 @@ class FramePlayer(AbstractAnimationPlayer):
                 self.rect = None
                 return True
             except Exception as error:
-                self._logger.error(f"Resource release failed: {str(error)}", exc_info=True)
+                self._logger.error(
+                    f"Resource release failed: {str(error)}",
+                    exc_info=True
+                )
                 raise
             finally:
                 self._released = True
@@ -1002,7 +1076,6 @@ class FramePlayer(AbstractAnimationPlayer):
                 self._cache_manager = None
                 super().kill()
                 self._logger.info("Resource release status updated")
-                self._logger = None
     
     def kill(self) -> None:
         self.release()
@@ -1016,25 +1089,8 @@ class FramePlayer(AbstractAnimationPlayer):
         Note: Relying on __del__ is not recommended as it's not guaranteed
         to be called promptly or at all. Always use release() or context manager.
         """
-        try:
-            released = getattr(self, '_released', False)
-            if released:
-                return
-            
-            if not (hasattr(self, '_logger') or hasattr(self, '_cache_manager')):
-                print("WARNING: Animator object is being deleted without being initialized `cache_manager`.")
-                return
-                
-            logger = self._logger
-            logger.warning("Animator object is being deleted without being released. Please use the release() method instead")
-            
-            try:
-                self.release()
-            except Exception as error:
-                logger.error(f"Error during automatic release in __del__: {error}")
-                
-        except Exception as error:
-            print(f"Critical error in Animator.__del__: {error}")
+        if not self._released:
+            self.release()
 
     def __enter__(self) -> FramePlayer:
         return self
@@ -1076,7 +1132,7 @@ class FramePlayer(AbstractAnimationPlayer):
         font = pygame.font.SysFont(None, _AnimationMagicNumber.DEBUG_FONT_SIZE)
         
         texts = [
-            f"State: {self.state or 'None'}",
+            f"State: {self.get_state or 'None'}",
             f"Frame: {self.frame_index}",
             f"Cache: {info['cache_size']}/{info['max_size']}",
             f"PlayMode: {self.play_mode}"
@@ -1087,14 +1143,10 @@ class FramePlayer(AbstractAnimationPlayer):
             surface.blit(text_surface, (pos[0], pos[1] + i * font.get_height()))
 
     @property
-    def state(self) -> str | None:
-        return self._state_manager.current_state
-    
-    @property
     def frame_index(self) -> int:
         return self._state_manager.frame_index
     
-    def _private_dir(self) -> List[str]:
+    def private_dirs(self) -> List[str]:
         """Get public attributes"""
         all_attrs = super().__dir__()
         public_attrs = [

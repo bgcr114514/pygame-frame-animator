@@ -62,40 +62,37 @@ for state in ["idle", "walk"]:
 config = AnimationConfig(
     frames=frames,
     frames_times={"idle": 0.2, "walk": 0.1},
-    frame_scale=(64, 64),  # 缩放尺寸
+    frame_scale=(64, 64),
     play_mode="loop"
 )
 
 animation = FramePlayer(config)
-animation.set_state("idle")
 
 running = True
 while running:
-    dt = clock.tick(60) / 1000.0  # 计算帧间隔时间
+    dt = clock.tick(60) / 1000.0 
     
-    # 处理事件
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
-                if animation.state == "idle":
+                if animation.get_state() == "idle":
                     animation.set_state("walk")
-                elif animation.state == "walk":
+                elif animation.get_state() == "walk":
                     animation.set_state("idle")
     
     # 更新动画
     animation.update_frame(dt)
     
-    # 绘制
     screen.fill((0, 0, 0))
-    animation.rect.center = (400, 300)  # 设置位置
+    animation.rect.center = (400, 300)
     animation.draw(screen)
     
     pygame.display.flip()
 
 # 清理资源
-animation.release()
+animation.kill()   # 你也可以使用 animation.kill()
 pygame.quit()
 ```
 ## API参考
@@ -109,11 +106,10 @@ pygame.quit()
 - `scale`: 缩放尺寸 `(width, height)`
 - `angle`: 旋转角度范围为`[0, 360)`
 
-#### `set_state(state: str, reset_frame: bool = True, keep_progress: bool = False)`
+#### `set_state(state: str, reset_frame: bool = True)`
 设置动画状态
 - `state`: 状态名称
 - `reset_frame`: 是否重置到第一帧
-- `keep_progress`: 是否保持进度比例
 
 #### `draw(surface: pygame.Surface)`
 绘制到目标surface
@@ -215,8 +211,6 @@ animation.rewind()   # 重置到开始
 | :--------: | :--------: | :--------: | :--------: | :--------: |
 | `image_provider` | `Optional[Dict[str, pygame.Surface]]` |	图片数据	| `None` | `{}` |
 | `logger_instance` | `Optional[AbstractLogger]` | 日志实例 | `None` | `DefaultLogger()` |
-| `state_manager` | `Optional[_FrameStateManager]` |	状态管理器	| `None` | `_FrameStateManager(args)` |
-| `cache_manager` | `Optional[_FrameCacheManager]` |	缓存管理器	| `None` | `_FrameCacheManager(args)` |
 
 ## 常见问题
 ### Q: 为什么选择单文件设计？
@@ -264,18 +258,6 @@ from animation import FramePlayerEasilyGenerator, AnimationConfig
 animation = FramePlayerEasilyGenerator.create(
     frames={"idle": ["idle_1.png", "idle_2.png"]},
     frames_times={"idle": 0.2}
-)
-
-# 完整参数创建方式
-animation = FramePlayerEasilyGenerator.create(
-    config=AnimationConfig(
-        frames={"walk": ["walk_1.png", "walk_2.png"]},
-        frames_times={"walk": 0.1},
-        play_mode="pingpong"
-    ),
-    injection=AnimationParamInjection(
-        logger_instance=custom_logger
-    )
 )
 ```
 
@@ -395,40 +377,37 @@ for state in ["idle", "walk"]:
 config = AnimationConfig(
     frames=frames,
     frames_times={"idle": 0.2, "walk": 0.1},
-    frame_scale=(64, 64),  # Scale size
+    frame_scale=(64, 64),
     play_mode="loop"
 )
 
 animation = FramePlayer(config)
-animation.set_state("idle")
 
 running = True
 while running:
-    dt = clock.tick(60) / 1000.0  # Calculate frame delta time
+    dt = clock.tick(60) / 1000.0 
     
-    # Handle events
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
-                if animation.state == "idle":
+                if animation.get_state() == "idle":
                     animation.set_state("walk")
-                elif animation.state == "walk":
+                elif animation.get_state() == "walk":
                     animation.set_state("idle")
     
     # Update animation
     animation.update_frame(dt)
     
-    # Draw
     screen.fill((0, 0, 0))
-    animation.rect.center = (400, 300)  # Set position
+    animation.rect.center = (400, 300)
     animation.draw(screen)
     
     pygame.display.flip()
 
 # Cleanup resources
-animation.release()
+animation.kill()   # You also can use animation.kill()
 pygame.quit()
 ```
 ## API Reference
@@ -442,11 +421,10 @@ Update the animation frame
 - `scale`: Scaling dimensions `(width, height)`
 - `angle`: Rotation angle range `[0, 360)`
 
-#### `set_state(state: str, reset_frame: bool = True, keep_progress: bool = False)`
+#### `set_state(state: str, reset_frame: bool = True)`
 Set the animation state
 - `state`: State name
 - `reset_frame`: Whether to reset to the first frame
-- `keep_progress`: Whether to maintain progress ratio
 
 #### `draw(surface: pygame.Surface)`
 Draw to the target surface
@@ -546,8 +524,6 @@ Sets the maximum cache capacity, measured in number of frames. When the cache ex
 | :--------: | :--------: | :--------: | :--------: | :--------: |
 | `image_provider` | `Optional[Dict[str, pygame.Surface]]` | Image data | `None` | `{}` |
 | `logger_instance` | `Optional[AbstractLogger]` | Logger instance | `None` | `DefaultLogger()` |
-| `state_manager` | `Optional[_FrameStateManager]` | State manager | `None` | `_FrameStateManager(args)` |
-| `cache_manager` | `Optional[_FrameCacheManager]` | Cache manager | `None` | `_FrameCacheManager(args)` |
 
 ## FAQ
 ### Q: Why choose a single file design?
@@ -594,17 +570,7 @@ animation = FramePlayerEasilyGenerator.create(
     frames_times={"idle": 0.2}
 )
 
-# Full parameter creation method
-animation = FramePlayerEasilyGenerator.create(
-    config=AnimationConfig(
-        frames={"walk": ["walk_1.png", "walk_2.png"]},
-        frames_times={"walk": 0.1},
-        play_mode="pingpong"
-    ),
-    injection=AnimationParamInjection(
-        logger_instance=custom_logger
-    )
-)
+
 ```
 
 ### Multi-State Animation Example

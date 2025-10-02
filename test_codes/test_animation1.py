@@ -35,9 +35,9 @@ while running:
             running = False
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
-                if animation.state == "idle":
+                if animation.get_state() == "idle":
                     animation.set_state("walk")
-                elif animation.state == "walk":
+                elif animation.get_state() == "walk":
                     animation.set_state("idle")
     
     # Update animation
@@ -51,5 +51,5 @@ while running:
     pygame.display.flip()
 
 # Cleanup resources
-animation.release()
+animation.kill()
 pygame.quit()
