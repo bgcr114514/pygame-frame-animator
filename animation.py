@@ -604,10 +604,10 @@ class FramePlayer(AbstractAnimationPlayer):
             Suggest using frame images of the same size for optimal performance
         """
         super().__init__()
+        self._image_source = injection.image_provider or {} # Advance declaration to prevent AttributeError during detection
         self._validate_init_params(config, injection)
 
         # Basic Parameters
-        self._image_source = injection.image_provider or {}
         self.frames_times = config.frames_times
         self.frame_scale: Scale = config.frame_scale
         self.play_mode: PlayMode = config.play_mode
