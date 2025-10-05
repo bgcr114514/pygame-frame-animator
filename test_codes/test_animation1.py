@@ -49,5 +49,5 @@ while running:
     pygame.display.flip()
 
 # Cleanup resources
-animation.kill()   # You also can use animation.kill()
+animation.release()   # You also can use animation.kill()
 pygame.quit()

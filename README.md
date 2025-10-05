@@ -63,7 +63,7 @@ config = AnimationConfig(
     frames=frames,
     frames_times={"idle": 0.2, "walk": 0.1},
     frame_scale=(64, 64),
-    play_mode="loop"
+    play_mode="loop"  # 这一行可以省略
 )
 
 animation = FramePlayer(config)
@@ -92,7 +92,7 @@ while running:
     pygame.display.flip()
 
 # 清理资源
-animation.kill()   # 你也可以使用 animation.kill()
+animation.release()   # 你也可以使用 animation.kill()
 pygame.quit()
 ```
 ## API参考
@@ -287,7 +287,7 @@ animation = FramePlayer(config)
 
 # 根据游戏逻辑切换状态
 def handle_input():
-    if player.is_walking():
+    if player.is_walking():     # 此为实际项目用户自己实现的方法，下方的 player.is_jumping() 方法同理
         animation.set_state("walk")
     elif player.is_jumping():
         animation.set_state("jump")
@@ -378,7 +378,7 @@ config = AnimationConfig(
     frames=frames,
     frames_times={"idle": 0.2, "walk": 0.1},
     frame_scale=(64, 64),
-    play_mode="loop"
+    play_mode="loop"  # This line can be omitted  #
 )
 
 animation = FramePlayer(config)
@@ -407,7 +407,7 @@ while running:
     pygame.display.flip()
 
 # Cleanup resources
-animation.kill()   # You also can use animation.kill()
+animation.release()   # You also can use animation.kill()
 pygame.quit()
 ```
 ## API Reference
@@ -599,7 +599,7 @@ animation = FramePlayer(config)
 
 # Switch states based on game logic
 def handle_input(player):
-    if player.is_walking():
+    if player.is_walking(): # This is a method implemented by the user themselves, and the player. player.is_jumping() method below is the same
         animation.set_state("walk")
     elif player.is_jumping():
         animation.set_state("jump")
