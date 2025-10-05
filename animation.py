@@ -29,8 +29,7 @@ class AbstractAnimationPlayer(ABC, pygame.sprite.Sprite):
     @abstractmethod
     def set_state(self, 
                   state: str, 
-                  reset_frame: bool = True, 
-                  keep_progress: bool = False) -> None:
+                  reset_frame: bool = True) -> None:
         """set animation state"""
         pass
     
@@ -227,20 +226,23 @@ class _FrameCacheManager:
             self._image_cache.clear()
         self._deps.logger.info("Cache cleared")
     
-    def release(self, image: pygame.Surface) -> None:
+    def release(self, image: Optional[pygame.Surface]) -> None:
         """Release the cache"""
         if not pygame.get_init():
             return
         
-        surfaces = [image] + [
+        surfaces = ([image] if image else []) + [
             v for v in self._image_cache.values()
             if isinstance(v, pygame.Surface)
         ]
+    
         for surf in surfaces:
             try:
+                if surf.get_locked():
+                    surf.unlock()
                 surf.fill((0, 0, 0, 0))
-            except (pygame.error, AttributeError):
-                self._deps.logger.warning(f"Failed to clear surface: {surf}")
+            except (pygame.error, AttributeError, RuntimeError) as error:
+                self._deps.logger.warning(f"Failed to clear surface: {surf} - {error}")
         self.clear()
     
     @property
@@ -279,9 +281,9 @@ class _FrameStateManager:
     
     __slots__ = (
         "deps", "current_state", "frame_index", "time_since_last_frame",
-        "play_mode", "_pingpong_direction", "_on_complete_callbacks",
+        "_on_complete_callbacks", "frames",
         "_on_frame_change_callbacks", "_on_state_change_callbacks", "_logger",
-        "frames"
+        
     )
     
     def __init__(
@@ -292,8 +294,6 @@ class _FrameStateManager:
         self.current_state: Optional[str] = None
         self.frame_index: int = 0
         self.time_since_last_frame: float = 0
-        self.play_mode: PlayMode = "loop"
-        self._pingpong_direction: int = 1
         self._on_complete_callbacks: List[Callable] = []
         self._on_frame_change_callbacks: List[Callable] = []
         self._on_state_change_callbacks: List[Callable] = []
@@ -311,22 +311,19 @@ class _FrameStateManager:
                 f"Invalid state: {state}. Available states: {available_states}"
             )
             
-        if state != self.current_state:
-            self.current_state = state
-            if reset_frame:
-                self.frame_index = 0
-                self.time_since_last_frame = 0
+        if state == self.current_state and not reset_frame:
+            return
+        
+        self.current_state = state
+        if reset_frame:
+            self.frame_index = 0
+            self.time_since_last_frame = 0
                 
-            self._handle_state_change(state)
+        self._handle_state_change(state)
 
     def rewind(self) -> None:
         self.frame_index = 0
         self.time_since_last_frame = 0
-
-    def set_play_mode(self, mode: str) -> None:
-        if mode not in ("loop", "once", "pingpong"):
-            raise ValueError(f"Invalid play mode: {mode}")
-        self.play_mode = mode
 
     def add_complete_callback(self, callback: Callable) -> None:
         if callable(callback):
@@ -463,19 +460,21 @@ class FramePlayerEasilyGenerator:
         ...
     
     @classmethod
-    def create(cls,
-              frames: FramesDict,
-              frames_times: Union[float, FramesTimesDict],
-              scale: Scale = (0, 0),
-              play_mode: PlayMode = "loop",
-              max_cache_size: int = 200) -> FramePlayer:
+    def create(
+        cls,
+        frames: FramesDict,
+        frames_times: Union[float, FramesTimesDict],
+        scale: Scale = _AnimationMagicNumber.ORIGINAL_IMAGE_FRAME_SCALE,
+        play_mode: PlayMode = _AnimationMagicNumber.DEFAULT_PLAY_MODE,
+        max_cache_size: int = _AnimationMagicNumber.DEFAULT_MAX_CHACH_SIZE
+    ) -> FramePlayer:
         """Create a FramePlayer instance with given parameters
         
         Args:
             frames: animation frames, in the format of:
                 {"state1": ["frame1", "frame2", ...], ...} or
                 {"state1": [surface1, surface2, ...], ...}
-            frame_time: frame interval time (in seconds) for each animation state, in the format of:
+            frames_times: frame interval time (in seconds) for each animation state, in the format of:
                 {
                     "state1": duration each frames(in seconds),
                     "state2": duration each frames(in seconds),
@@ -645,6 +644,8 @@ class FramePlayer(AbstractAnimationPlayer):
         self.rect: Optional[pygame.Rect] = None
         self._released = False
 
+        self._pingpong_direction: int = 1
+
         # Initialize image
         if self._surface_frames:
             self.image = self._process_surface_frame(
@@ -663,7 +664,7 @@ class FramePlayer(AbstractAnimationPlayer):
         if _first_frame != [] and isinstance(_first_frame[0], pygame.Surface):
             self._surface_frames = True
             self.frames = {
-                k: [frame.copy() for frame in v] 
+                k: [frame.copy() for frame in v]
                 for k, v in config.frames.items()
             }
         else:
@@ -823,7 +824,7 @@ class FramePlayer(AbstractAnimationPlayer):
                     _AnimationMagicNumber.DEFAULT_MAX_CHACH_SIZE
                 }"
             )
-        if not play_mode in get_args(PlayMode):
+        if play_mode not in get_args(PlayMode):
             raise ValueError(
                 f"Invalid play mode: {play_mode},"
                 "play mode must be one of {get_args(PlayMode)}"
@@ -850,7 +851,7 @@ class FramePlayer(AbstractAnimationPlayer):
                 except (pygame.error, FileNotFoundError) as e:
                     raise ValueError(
                         f'frames["{state}"][{i}]: '
-                        'Cannot load image resource "{frame}" - {e}'
+                        f'Cannot load image resource "{frame}" - {e}'
                     )
 
     @staticmethod
@@ -891,13 +892,14 @@ class FramePlayer(AbstractAnimationPlayer):
                   state: str, 
                   reset_frame: bool = True) -> None:
         """Set now playing state (delegates to state_manager)"""
-        self._state_manager.set_state(state, reset_frame)
+        with self._cache_manager.lock:
+            self._state_manager.set_state(state, reset_frame)
     
     def rewind(self) -> None:
         """Reset to the starting frame (delegates to state_manager)"""
         self._state_manager.rewind()
 
-    def set_play_mode(self, mode: str) -> None:
+    def set_play_mode(self, mode: PlayMode) -> None:
         """Set play mode
         
         Args:
@@ -906,7 +908,9 @@ class FramePlayer(AbstractAnimationPlayer):
         Raises:
             ValueError: Invalid play mode
         """
-        self._state_manager.set_play_mode(mode)
+        if mode not in get_args(PlayMode):
+            raise ValueError(f"Invalid play mode: {mode}")
+        self.play_mode = mode
 
     def add_complete_callback(self, callback: Callable) -> None:
         """Add animation complete callback
@@ -1006,8 +1010,10 @@ class FramePlayer(AbstractAnimationPlayer):
                     current_frames_list[self._state_manager.frame_index]
                 
                 if self._surface_frames:
+                    assert isinstance(current_frame, pygame.Surface)
                     self.image = self._process_surface_frame(current_frame)
                 else:
+                    assert isinstance(current_frame, str)
                     self.image = self._cache_manager.get_cached_image(current_frame)
 
                 old_center = self.rect.center if self.rect else None
@@ -1063,14 +1069,11 @@ class FramePlayer(AbstractAnimationPlayer):
                 return True
             except Exception as error:
                 self._logger.error(
-                    f"Resource release failed: {str(error)}",
-                    exc_info=True
+                    f"Resource release failed: {str(error)}"
                 )
                 raise
             finally:
                 self._released = True
-                self._state_manager = None
-                self._cache_manager = None
                 super().kill()
                 self._logger.info("Resource release status updated")
     
@@ -1123,21 +1126,29 @@ class FramePlayer(AbstractAnimationPlayer):
         """
         return self._cache_manager.info
 
-    def draw_debug_info(self, surface: pygame.Surface, pos: Tuple[int, int]) -> None:
+    def draw_debug_info(self, 
+                        surface: pygame.Surface, 
+                        pos: Tuple[int, int]) -> None:
         """Draw debug info to the given surface"""
         info = self.cache_info
-        font = pygame.font.SysFont(None, _AnimationMagicNumber.DEBUG_FONT_SIZE)
+        font = pygame.font.SysFont(
+            None, 
+            _AnimationMagicNumber.DEBUG_FONT_SIZE
+        )
         
         texts = [
-            f"State: {self.get_state or 'None'}",
+            f"State: {self.get_state() or 'None'}",
             f"Frame: {self.frame_index}",
-            f"Cache: {info['cache_size']}/{info['max_size']}",
+            f"Cache: {info['cache_size']} / {info['max_size']}",
             f"PlayMode: {self.play_mode}"
         ]
         
         for i, text in enumerate(texts):
             text_surface = font.render(text, True, (255, 255, 255))
-            surface.blit(text_surface, (pos[0], pos[1] + i * font.get_height()))
+            surface.blit(
+                text_surface, 
+                (pos[0], pos[1] + i * font.get_height())
+            )
 
     @property
     def frame_index(self) -> int:

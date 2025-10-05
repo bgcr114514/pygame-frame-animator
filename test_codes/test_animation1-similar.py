@@ -1,4 +1,9 @@
-from animation import FramePlayer, AnimationConfig
+"""
+The similar test code to test_animation1.py, 
+using the FramePlayerEasilyGenerator class to create the animation player.
+"""
+
+from animation import FramePlayerEasilyGenerator
 import pygame
 
 # Initialize pygame
@@ -16,19 +21,20 @@ for state in ["idle", "walk"]:
         pygame.draw.circle(surf, color, (16, 16), 10 + i*2)
         frames[state].append(surf)
 # Create the animation player
-config = AnimationConfig(
-    frames=frames,
-    frames_times={"idle": 0.2, "walk": 0.1},
-    frame_scale=(64, 64),
-    play_mode="loop" # This line can be omitted
+animation = \
+FramePlayerEasilyGenerator.create(
+    frames, 
+    {"idle": 0.2, "walk": 0.1},
+    (64, 64)
 )
-
-animation = FramePlayer(config)
 
 running = True
 while running:
-    dt = clock.tick(60) / 1000.0 
+    clock.tick(60)
+    # dt = clock.tick(60) / 1000.0  
+    # Calculate frame delta time, but we can not used in this test code
     
+    # Handle events
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
@@ -40,14 +46,15 @@ while running:
                     animation.set_state("idle")
     
     # Update animation
-    animation.update_frame(dt)
+    animation.update_frame()
     
+    # Draw
     screen.fill((0, 0, 0))
-    animation.rect.center = (400, 300)
+    animation.rect.center = (400, 300)  # Set position
     animation.draw(screen)
     
     pygame.display.flip()
 
 # Cleanup resources
-animation.kill()   # You also can use animation.kill()
+animation.kill()
 pygame.quit()
