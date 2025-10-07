@@ -1,0 +1,46 @@
+name: "Feature or Enhancement"
+description: "Suggest an idea or improvement for this project"
+labels: []
+
+body:
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting your request
+      options:
+        - label: I have searched through existing issues and discussions to ensure this hasn't been requested before
+          required: true
+        - label: I have read the README and documentation to understand current capabilities
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: Is your feature request related to a problem? Please describe.
+      placeholder: "I'm always frustrated when..."
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the solution you'd like to see
+      placeholder: "I would like to be able to..."
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternative Solutions
+      description: Describe any alternative solutions or features you've considered
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Add any other context, screenshots, or examples about the feature request here
+
+  - type: input
+    id: pr-link
+    attributes:
+      label: Pull Request Link (Optional)
+      description: If you've already started working on this, please link your PR

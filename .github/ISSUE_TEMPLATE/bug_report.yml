@@ -51,7 +51,7 @@ body:
   - type: textarea
     id: logs
     attributes:
-      label: 相关日志
+      label: Logs
       description: |
         Please copy and paste any relevant log output, or provide log files
       render: Text
